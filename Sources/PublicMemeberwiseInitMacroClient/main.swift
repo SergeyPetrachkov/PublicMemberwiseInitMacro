@@ -1,8 +1,15 @@
 import PublicMemeberwiseInitMacro
 
-let a = 17
-let b = 25
+@publicMemberwiseInit
+class Sample {
+    var x: Int
+    let y: Double
 
-let (result, code) = #stringify(a + b)
+//    init() {
+//        x = 2
+//        y = 3
+//    }
+}
 
-print("The value \(result) was produced by the code \"\(code)\"")
+
+let sample = Sample(x: 1, y: 2)

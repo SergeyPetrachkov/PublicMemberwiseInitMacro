@@ -3,31 +3,53 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
-/// Implementation of the `stringify` macro, which takes an expression
-/// of any type and produces a tuple containing the value of that expression
-/// and the source code that produced the value. For example
-///
-///     #stringify(x + y)
-///
-///  will expand to
-///
-///     (x + y, "x + y")
-public struct StringifyMacro: ExpressionMacro {
+public struct PublicMemberwiseInitMacro: MemberMacro {
     public static func expansion(
-        of node: some FreestandingMacroExpansionSyntax,
+        of attribute: AttributeSyntax,
+        providingMembersOf declaration: some DeclGroupSyntax,
         in context: some MacroExpansionContext
-    ) -> ExprSyntax {
-        guard let argument = node.argumentList.first?.expression else {
-            fatalError("compiler bug: the macro does not have any arguments")
+    ) throws -> [DeclSyntax] {
+        guard let classDeclaration = declaration.as(ClassDeclSyntax.self) else {
+            return []
+        }
+        let storedProperties = classDeclaration
+            .memberBlock
+            .members
+            .compactMap { $0.decl.as(VariableDeclSyntax.self) }
+            .filter { $0.bindings.first?.accessor == nil }
+
+        let initArguments = storedProperties.compactMap { property -> (name: String, type: String)? in
+            guard let patternBinding = property.bindings.first?.as(PatternBindingSyntax.self) else {
+                return nil
+            }
+
+            guard let name = patternBinding.pattern.as(IdentifierPatternSyntax.self)?.identifier,
+                  let type = patternBinding.typeAnnotation?.as(TypeAnnotationSyntax.self)?.type.as(SimpleTypeIdentifierSyntax.self)?.name else {
+                return nil
+            }
+
+            return (name: name.text, type: type.text)
         }
 
-        return "(\(argument), \(literal: argument.description))"
+        let initBody: ExprSyntax = "\(raw: initArguments.map { "self.\($0.name) = \($0.name)" }.joined(separator: "\n"))"
+
+        guard let initDeclSyntax = try? InitializerDeclSyntax(
+            PartialSyntaxNodeString(stringLiteral: "init(\(initArguments.map { "\($0.name): \($0.type)" }.joined(separator: ", ")))"),
+            bodyBuilder: {
+                initBody
+            }
+        ),
+              let finalDeclaration = DeclSyntax(initDeclSyntax)
+        else {
+            return []
+        }
+        return [finalDeclaration]
     }
 }
 
 @main
 struct PublicMemeberwiseInitMacroPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
-        StringifyMacro.self,
+        PublicMemberwiseInitMacro.self,
     ]
 }
