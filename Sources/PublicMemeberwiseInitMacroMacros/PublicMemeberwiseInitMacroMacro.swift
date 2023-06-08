@@ -49,11 +49,10 @@ extension VariableDeclSyntax {
     /// This syntactic check cannot account for semantic adjustments due to,
     /// e.g., accessor macros or property wrappers.
     var isStoredProperty: Bool {
-        if bindings.count != 1 {
+        guard let binding = bindings.first, bindings.count == 1 else {
             return false
         }
 
-        let binding = bindings.first!
         switch binding.accessor {
         case .none:
             return true
