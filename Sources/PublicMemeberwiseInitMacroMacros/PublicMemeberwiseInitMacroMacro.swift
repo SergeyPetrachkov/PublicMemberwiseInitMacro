@@ -4,15 +4,19 @@ import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
 public struct PublicMemberwiseInitMacro: MemberMacro {
+
     public static func expansion(
         of attribute: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        guard let classDeclaration = declaration.as(ClassDeclSyntax.self) else {
+
+        let storedProperties = declaration.as(ClassDeclSyntax.self)?.storedProperties()
+        ?? declaration.as(StructDeclSyntax.self)?.storedProperties()
+
+        guard let storedProperties = storedProperties else {
             return []
         }
-        let storedProperties = classDeclaration.storedProperties()
 
         let initArguments = storedProperties.compactMap { property -> (name: String, type: String)? in
             guard let patternBinding = property.bindings.first?.as(PatternBindingSyntax.self) else {
@@ -30,13 +34,12 @@ public struct PublicMemberwiseInitMacro: MemberMacro {
         let initBody: ExprSyntax = "\(raw: initArguments.map { "self.\($0.name) = \($0.name)" }.joined(separator: "\n"))"
 
         guard let initDeclSyntax = try? InitializerDeclSyntax(
-            PartialSyntaxNodeString(stringLiteral: "init(\(initArguments.map { "\($0.name): \($0.type)" }.joined(separator: ", ")))"),
+            PartialSyntaxNodeString(stringLiteral: "public init(\(initArguments.map { "\($0.name): \($0.type)" }.joined(separator: ", ")))"),
             bodyBuilder: {
                 initBody
             }
         ),
-              let finalDeclaration = DeclSyntax(initDeclSyntax)
-        else {
+              let finalDeclaration = DeclSyntax(initDeclSyntax) else {
             return []
         }
         return [finalDeclaration]
@@ -44,10 +47,7 @@ public struct PublicMemberwiseInitMacro: MemberMacro {
 }
 
 extension VariableDeclSyntax {
-    /// Determine whether this variable has the syntax of a stored property.
-    ///
-    /// This syntactic check cannot account for semantic adjustments due to,
-    /// e.g., accessor macros or property wrappers.
+    /// Check if this variable has the syntax of a stored property.
     var isStoredProperty: Bool {
         guard let binding = bindings.first, bindings.count == 1 else {
             return false
@@ -57,28 +57,26 @@ extension VariableDeclSyntax {
         case .none:
             return true
         case .accessors(let node):
+            // traverse accessors
             for accessor in node.accessors {
                 switch accessor.accessorKind.tokenKind {
                 case .keyword(.willSet), .keyword(.didSet):
-                    // Observers can occur on a stored property.
+                    // stored properties can have observers
                     break
                 default:
-                    // Other accessors make it a computed property.
+                    // everything else makes it a computed property
                     return false
                 }
             }
             return true
         case .getter:
             return false
-        @unknown default:
-            return false
         }
     }
 }
 
 extension DeclGroupSyntax {
-    /// Enumerate the stored properties that syntactically occur in this
-    /// declaration.
+    /// Get the stored properties from the declaration based on syntax.
     func storedProperties() -> [VariableDeclSyntax] {
         return memberBlock.members.compactMap { member in
             guard let variable = member.decl.as(VariableDeclSyntax.self),

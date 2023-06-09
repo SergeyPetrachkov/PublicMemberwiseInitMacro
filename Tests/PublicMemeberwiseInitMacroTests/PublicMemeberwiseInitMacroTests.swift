@@ -8,7 +8,7 @@ let testMacros: [String: Macro.Type] = [
 ]
 
 final class PublicMemeberwiseInitMacroTests: XCTestCase {
-    func testMacro() {
+    func testMacroForClass() {
         assertMacroExpansion(
             """
             @publicMemberwiseInit
@@ -66,7 +66,76 @@ final class PublicMemeberwiseInitMacroTests: XCTestCase {
 
                 func sayBye() {
                 }
-                init(x: Int, y: Double, _something: Bool) {
+                public init(x: Int, y: Double, _something: Bool) {
+                    self.x = x
+                    self.y = y
+                    self._something = _something
+                }
+            }
+            """,
+            macros: testMacros
+        )
+    }
+
+    func testMacroForStruct() {
+        assertMacroExpansion(
+            """
+            @publicMemberwiseInit
+            struct Sample {
+                var x: Int
+                let y: Double
+
+                var myComputedProperty: String {
+                    "hello world"
+                }
+
+                private var _something: Bool
+
+                var something: Bool {
+                    get {
+                        return _something
+                    }
+                    set {
+                        _something = newValue
+                    }
+                }
+
+                func sayHi() {
+
+                }
+
+                func sayBye() { }
+            }
+            """,
+            expandedSource:
+            """
+
+            struct Sample {
+                var x: Int
+                let y: Double
+
+                var myComputedProperty: String {
+                    "hello world"
+                }
+
+                private var _something: Bool
+
+                var something: Bool {
+                    get {
+                        return _something
+                    }
+                    set {
+                        _something = newValue
+                    }
+                }
+
+                func sayHi() {
+
+                }
+
+                func sayBye() {
+                }
+                public init(x: Int, y: Double, _something: Bool) {
                     self.x = x
                     self.y = y
                     self._something = _something

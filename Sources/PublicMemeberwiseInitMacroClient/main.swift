@@ -13,4 +13,10 @@ final class Sample {
 
 let sample = Sample(x: 1, y: 2)
 
+@publicMemberwiseInit
+struct StructSample {
+    var firstProp: Bool
+    let secondProp: String
+}
+
 print(sample)
