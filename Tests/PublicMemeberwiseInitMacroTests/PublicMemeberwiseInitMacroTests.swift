@@ -190,4 +190,28 @@ final class PublicMemeberwiseInitMacroTests: XCTestCase {
             macros: testMacros
         )
     }
+
+    // FIXME: this should treated as a separate edge case
+    func testDuplicatedInitsAreNotCreated() {
+        assertMacroExpansion(
+            """
+            @publicMemberwiseInit
+            class Sample {
+                public init() {
+
+                }
+            }
+            """,
+            expandedSource:
+            """
+
+            class Sample {
+                public init() {
+
+                }
+            }
+            """,
+            macros: testMacros
+        )
+    }
 }
