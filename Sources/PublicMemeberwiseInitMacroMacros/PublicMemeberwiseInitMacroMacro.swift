@@ -5,18 +5,29 @@ import SwiftSyntaxMacros
 
 public struct PublicMemberwiseInitMacro: MemberMacro {
 
+    enum Errors: Swift.Error, CustomStringConvertible {
+        case invalidInputType
+
+        var description: String {
+            "@PublicMemberwiseInitMacro is only applicable to structs or classes"
+        }
+    }
+
     public static func expansion(
         of attribute: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
 
-        let storedProperties = declaration.as(ClassDeclSyntax.self)?.storedProperties()
-        ?? declaration.as(StructDeclSyntax.self)?.storedProperties()
-
-        guard let storedProperties = storedProperties else {
-            return []
-        }
+        let storedProperties: [VariableDeclSyntax] = try {
+            if let classDeclaration = declaration.as(ClassDeclSyntax.self) {
+                return classDeclaration.storedProperties()
+            } else if let structDeclaration = declaration.as(StructDeclSyntax.self) {
+                return structDeclaration.storedProperties()
+            } else {
+                throw Errors.invalidInputType
+            }
+        }()
 
         let initArguments = storedProperties.compactMap { property -> (name: String, type: String)? in
             guard let patternBinding = property.bindings.first?.as(PatternBindingSyntax.self) else {
@@ -33,15 +44,15 @@ public struct PublicMemberwiseInitMacro: MemberMacro {
 
         let initBody: ExprSyntax = "\(raw: initArguments.map { "self.\($0.name) = \($0.name)" }.joined(separator: "\n"))"
 
-        guard let initDeclSyntax = try? InitializerDeclSyntax(
+        let initDeclSyntax = try InitializerDeclSyntax(
             PartialSyntaxNodeString(stringLiteral: "public init(\(initArguments.map { "\($0.name): \($0.type)" }.joined(separator: ", ")))"),
             bodyBuilder: {
                 initBody
             }
-        ),
-              let finalDeclaration = DeclSyntax(initDeclSyntax) else {
-            return []
-        }
+        )
+
+        let finalDeclaration = DeclSyntax(initDeclSyntax)
+
         return [finalDeclaration]
     }
 }
@@ -49,7 +60,10 @@ public struct PublicMemberwiseInitMacro: MemberMacro {
 extension VariableDeclSyntax {
     /// Check if this variable has the syntax of a stored property.
     var isStoredProperty: Bool {
-        guard let binding = bindings.first, bindings.count == 1 else {
+        guard let binding = bindings.first,
+              bindings.count == 1,
+              !isLazyProperty,
+              !isConstant else {
             return false
         }
 
@@ -72,6 +86,14 @@ extension VariableDeclSyntax {
         case .getter:
             return false
         }
+    }
+
+    var isLazyProperty: Bool {
+        modifiers?.contains { $0.name.tokenKind == .keyword(Keyword.lazy) } ?? false
+    }
+
+    var isConstant: Bool {
+        bindingKeyword.tokenKind == .keyword(Keyword.let) && bindings.first?.initializer != nil
     }
 }
 

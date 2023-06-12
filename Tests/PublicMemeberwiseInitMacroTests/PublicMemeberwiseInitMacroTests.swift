@@ -145,4 +145,49 @@ final class PublicMemeberwiseInitMacroTests: XCTestCase {
             macros: testMacros
         )
     }
+
+    func testLazyPropsAreTreatedProperly() {
+        assertMacroExpansion(
+            """
+            @publicMemberwiseInit
+            class Sample {
+                lazy var x: Int = 1
+                let y: Double
+            }
+            """,
+            expandedSource:
+            """
+
+            class Sample {
+                lazy var x: Int = 1
+                let y: Double
+                public init(y: Double) {
+                    self.y = y
+                }
+            }
+            """,
+            macros: testMacros
+        )
+    }
+
+    func testLetPropertiesWithValuesAreTreatedCorrectly() {
+        assertMacroExpansion(
+            """
+            @publicMemberwiseInit
+            class Sample {
+                let y: Double = 0
+            }
+            """,
+            expandedSource:
+            """
+
+            class Sample {
+                let y: Double = 0
+                public init() {
+                }
+            }
+            """,
+            macros: testMacros
+        )
+    }
 }
